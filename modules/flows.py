@@ -1,6 +1,8 @@
 import torch 
 from torch import nn
 
+from sys import exit as e
+
 class SimpleNet(nn.Module):
   def __init__(self, inp, parity):
     super(SimpleNet, self).__init__()
@@ -16,36 +18,42 @@ class SimpleNet(nn.Module):
     self.parity = parity
 
   def forward(self, x):
+    z = torch.zeros(x.size())
     x0, x1 = x[:, ::2], x[:, 1::2]
     if self.parity % 2:
       x0, x1 = x1, x0 
-    # print("X: ", x0[0].detach(), x1[0].detach())
+    # print("X: ", x0[0][0].detach(), x1[0][0].detach())
     z1 = x1
     log_s = self.net(x1)
     t = self.net(x1)
     s = torch.exp(log_s)
     z0 = (s * x0) + t
-    # print("Z: ", z0[0].detach(), z1[0].detach())
+    # print("Z: ", z0[0][0].detach(), z1[0][0].detach())
     if self.parity%2:
       z0, z1 = z1, z0
-    z = torch.cat([z0, z1], dim = 1)
+    z[:, ::2] = z0
+    z[:, 1::2] = z1
+    # z = torch.cat([z0, z1], dim = 1)
     logdet = torch.sum(torch.log(s), dim = 1)
     return z, logdet
   
   def reverse(self, z):
+    x = torch.zeros(z.size())
     z0, z1 = z[:, ::2], z[:, 1::2]
     if self.parity%2:
       z0, z1 = z1, z0
-    # print("Z: ", z0[0].detach(), z1[0].detach())
+    # print("Z: ", z0[0][0].detach(), z1[0][0].detach())
     x1 = z1
     log_s = self.net(z1)
     t = self.net(z1)
     s = torch.exp(log_s)
     x0 = (z0 - t)/s
-    # print("X: ", x0[0].detach(), x1[0].detach())
+    # print("X: ", x0[0][0].detach(), x1[0][0].detach())
     if self.parity%2:
       x0, x1 = x1, x0
-    x = torch.cat([x0, x1], dim = 1)
+    x[:, ::2] = x0
+    x[:, 1::2] = x1
+    # x = torch.cat([x0, x1], dim = 1)
     return x
   
 
