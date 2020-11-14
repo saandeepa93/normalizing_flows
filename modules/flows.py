@@ -8,11 +8,10 @@ class SimpleNet(nn.Module):
     super(SimpleNet, self).__init__()
     self.net = nn.Sequential(
       nn.Linear(inp//2, 24),
-      nn.ReLU(True),
+      nn.LeakyReLU(True),
       nn.Linear(24, 24),
-      nn.ReLU(True),
+      nn.LeakyReLU(True),
       nn.Linear(24, inp//2),
-      # nn.Sigmoid()
     )
     self.inp = inp
     self.parity = parity
@@ -33,7 +32,6 @@ class SimpleNet(nn.Module):
       z0, z1 = z1, z0
     z[:, ::2] = z0
     z[:, 1::2] = z1
-    # z = torch.cat([z0, z1], dim = 1)
     logdet = torch.sum(torch.log(s), dim = 1)
     return z, logdet
   
@@ -53,7 +51,6 @@ class SimpleNet(nn.Module):
       x0, x1 = x1, x0
     x[:, ::2] = x0
     x[:, 1::2] = x1
-    # x = torch.cat([x0, x1], dim = 1)
     return x
   
 
@@ -103,6 +100,5 @@ class Flow(nn.Module):
   
   def get_sample(self, n):
     z = self.prior.sample(sample_shape = torch.Size([n]))
-    z_inv = self.reverse(z)
-    return z_inv
+    return self.reverse(z)
 

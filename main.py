@@ -4,7 +4,7 @@ from modules.train import train_data, test_data
 
 
 def main():
-  train_data()
+  # train_data()
   test_data()
 
 
