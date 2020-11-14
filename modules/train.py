@@ -21,6 +21,12 @@ from sys import exit as e
 # internal 
 from modules.flows import Flow
 
+def init_weights(model):
+  if type(model) == nn.Linear:
+    torch.nn.init.xavier_uniform_(model.weight)
+    model.bias.data.fill_(0.0)
+
+
 def norm(AA, batch_size, height, width):
   AA = AA.view(AA.size(0), -1)
   AA -= AA.min(1, keepdim=True)[0]
@@ -32,9 +38,10 @@ def plot(arr):
   plt.scatter(arr[:, 0], arr[:, 1])
   plt.show()
 
-def show(img):
+def show(img, name):
   plt.imshow(img)
-  plt.show()
+  # plt.show()
+  plt.savefig(f"./samples/{name}.png")
 
 def imshow(img):
   cv2.imshow("image", img)
@@ -61,18 +68,18 @@ def test_data():
   n_block = 9
   prior = MultivariateNormal(torch.zeros(dim), torch.eye(dim))
   model = Flow(dim, prior, n_block)
-  model.load_state_dict(torch.load("./models/model_best.pth.tar"))
+  model.load_state_dict(torch.load("./models/mnist.pth.tar"))
   model.eval()
   sample = prior.sample([1])
   xs  = model.get_sample(1)
   sample = sample.view(28, 28).unsqueeze(0)
   xs = norm(xs, 1, 28, 28).squeeze()
   print(torch.min(xs), torch.max(xs))
-  imshow(xs.view(28, 28).detach().numpy())
+  show(sample.view(28, 28).detach().numpy())
+  show(xs.view(28, 28).detach().numpy())
   # imshow(z.view(28, 28).detach().numpy())
   # imshow(sample.view(28, 28).detach().numpy())
   # plot(xs.detach())
-
 
 def train_data():
   inpt = 100
@@ -93,15 +100,18 @@ def train_data():
 
   torch.manual_seed(1)
   model = Flow(dim, prior, n_block)
+  model.apply(init_weights)
   optimizer = optim.Adam(model.parameters(), lr)
 
+  sample = prior.sample([1])
   for i in range(epochs):
     total_loss = 0
     for b, (x, _) in enumerate(train_loader):
+      model.train()
+      optimizer.zero_grad()
       if b == 100:
         break
       x = x.view(batch_size, -1)
-      optimizer.zero_grad()
       z, logdet, logprob = model(x)
       img_orig = x.reshape(batch_size, 28, 28)
       img_test = model.reverse(z).reshape(batch_size, 28, 28)
@@ -111,13 +121,20 @@ def train_data():
       loss = -(logprob + logdet)
       loss = torch.sum(loss)
       total_loss += loss
-    if i % 1 == 0:
+    if i % 10 == 0:
+      model.eval()
+      # for params in model.parameters():
+      #   print(params.mean())
       if loss.item()/batch_size < old_loss and loss.item() > 0:
         is_best = 1
         save_checkpoint(model.state_dict(), is_best)
         print("saved model")
         old_loss = loss/batch_size
+        xs = model.reverse(sample)
+        show(xs.squeeze().view(28, 28).detach().numpy(), i)
+        # show(x[0].squeeze().view(28, 28).detach().numpy(), i)
       print(f"loss at epoch {i}: {loss.item()/batch_size}")
+    model.train()
     loss.backward()
     optimizer.step()
   best_loss = old_loss

@@ -12,6 +12,8 @@ class SimpleNet(nn.Module):
       nn.Linear(24, 24),
       nn.LeakyReLU(True),
       nn.Linear(24, inp//2),
+      nn.Softmax(),
+      nn.BatchNorm1d(392)
     )
     self.inp = inp
     self.parity = parity
