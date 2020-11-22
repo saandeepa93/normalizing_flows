@@ -7,12 +7,12 @@ class SimpleNet(nn.Module):
   def __init__(self, inp, parity):
     super(SimpleNet, self).__init__()
     self.net = nn.Sequential(
-      nn.Linear(inp//2, 24),
+      nn.Linear(inp//2, 256),
       nn.LeakyReLU(True),
-      nn.Linear(24, 24),
+      nn.Linear(256, 256),
       nn.LeakyReLU(True),
-      nn.Linear(24, inp//2),
-      nn.Softmax(),
+      nn.Linear(256, inp//2),
+      nn.Sigmoid(),
       nn.BatchNorm1d(392)
     )
     self.inp = inp
@@ -26,6 +26,7 @@ class SimpleNet(nn.Module):
     # print("X: ", x0[0][0].detach(), x1[0][0].detach())
     z1 = x1
     log_s = self.net(x1)
+    # print(x.size(), x1.size(), log_s.size())
     t = self.net(x1)
     s = torch.exp(log_s)
     z0 = (s * x0) + t
