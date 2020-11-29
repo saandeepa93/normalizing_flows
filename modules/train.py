@@ -40,7 +40,7 @@ def plot(arr):
 def show(img, name):
   plt.imshow(img)
   # plt.show()
-  plt.savefig(f"./samples/{name}.png")
+  plt.savefig(f"/data/saandeepaath/flow_based/samples/{name}.png")
 
 def imshow(img):
   cv2.imshow("image", img)
@@ -89,7 +89,18 @@ def train_data(opt, model, rank, train_loader, optimizer, epoch):
     optimizer.zero_grad()
     x = x.view(x.size(0), -1)
     x = x.to(rank)
-    z, logdet, logprob = model(x, rank)
+    z, logdet, logprob = model(x)
+
+    x_1 = x[0:4]
+    x_new = model.module.reverse(x_1)
+    img = x_1.view(4, 28, 28).detach().cpu().numpy()
+    img_rev = x_new.view(4, 28, 28).detach().cpu()
+    # img_rev = norm(img_rev, 4, 28, 28).numpy()
+    # for i in range(4):
+    #   show(img[i], f"img_orig_{i}")
+    #   show(img_rev[i], f"img_rev_{i}")
+    # print(np.amin(img), np.amax(img))
+    # print(np.amin(img_rev), np.amax(img_rev))
     loss = -(logprob + logdet)
     loss = torch.sum(loss)
     loss.backward()

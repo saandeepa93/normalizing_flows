@@ -12,7 +12,6 @@ def main():
   parser.add_argument('--no-cuda', default=False, help="disables CUDA if true")
   parser.add_argument("--gpus", default=4, help="# of GPUS in a node")
   parser.add_argument("--root", default="./data")
-  parser.add_argument("--local_rank", default=0, type=int)
   opt = parser.parse_args()
 
   os.environ["CUDA_VISIBLE_DEVICES"]="0,1,2,3"

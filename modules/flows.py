@@ -12,25 +12,21 @@ class SimpleNet(nn.Module):
       nn.Linear(256, 256),
       nn.LeakyReLU(True),
       nn.Linear(256, inp//2),
-      nn.Sigmoid(),
-      nn.BatchNorm1d(392)
+      nn.Sigmoid()
     )
     self.inp = inp
     self.parity = parity
-
+  
   def forward(self, x):
-    z = torch.zeros(x.size())
+    z = torch.zeros_like(x)
     x0, x1 = x[:, ::2], x[:, 1::2]
     if self.parity % 2:
       x0, x1 = x1, x0 
-    # print("X: ", x0[0][0].detach(), x1[0][0].detach())
     z1 = x1
     log_s = self.net(x1)
-    # print(x.size(), x1.size(), log_s.size())
     t = self.net(x1)
     s = torch.exp(log_s)
     z0 = (s * x0) + t
-    # print("Z: ", z0[0][0].detach(), z1[0][0].detach())
     if self.parity%2:
       z0, z1 = z1, z0
     z[:, ::2] = z0
@@ -39,17 +35,15 @@ class SimpleNet(nn.Module):
     return z, logdet
   
   def reverse(self, z):
-    x = torch.zeros(z.size())
+    x = torch.zeros_like(z)
     z0, z1 = z[:, ::2], z[:, 1::2]
     if self.parity%2:
       z0, z1 = z1, z0
-    # print("Z: ", z0[0][0].detach(), z1[0][0].detach())
     x1 = z1
     log_s = self.net(z1)
     t = self.net(z1)
     s = torch.exp(log_s)
     x0 = (z0 - t)/s
-    # print("X: ", x0[0][0].detach(), x1[0][0].detach())
     if self.parity%2:
       x0, x1 = x1, x0
     x[:, ::2] = x0
@@ -67,21 +61,17 @@ class Block(nn.Module):
       parity += 1
     
   
-  def forward(self, x, rank):
-
+  def forward(self, x):
     logdet = 0
     out = x
     xs = [out]
-    # print("*"*20, "FORWARD", "*"*30)
     for block in self.blocks:
       out, det = block(out)
-      out, det = out.to(rank), det.to(rank)
       logdet += det
       xs.append(out)
     return out, logdet
 
   def reverse(self, z):
-    # print("*"*20, "REVERSE", "*"*30)
     out = z
     for block in self.blocks[::-1]:
       out = block.reverse(out)
@@ -94,8 +84,8 @@ class Flow(nn.Module):
     self.prior = prior
     self.flow = Block(inp, n_blocks)
   
-  def forward(self, x, rank):
-    z, logdet = self.flow(x, rank)
+  def forward(self, x):
+    z, logdet = self.flow(x)
     logprob = self.prior.log_prob(z).view(x.size(0), -1).sum(1)
     return z, logdet, logprob
   

@@ -7,6 +7,7 @@ from torch.distributions import MultivariateNormal
 from torchvision.datasets import MNIST
 from torchvision import transforms
 from torch.utils.data import DataLoader
+from torch.optim.lr_scheduler import StepLR
 
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel
@@ -34,8 +35,8 @@ def startup(rank, world_size, opt, use_cuda):
   inpt = 100
   dim = 784
   n_block = 9
-  epochs = 20
-  lr = 0.001
+  epochs = 200
+  lr = 0.005
   wd=1e-3
   old_loss = 1e6
   best_loss = 0
@@ -53,14 +54,16 @@ def startup(rank, world_size, opt, use_cuda):
   
   model = Flow(dim, prior, n_block)
   optimizer = optim.Adam(model.parameters(), lr)
+  scheduler = StepLR(optimizer, step_size=1, gamma=0.7)
 
   if use_cuda and torch.cuda.device_count()>1:
     model = model.to(rank)
     model = DistributedDataParallel(model, device_ids=[rank])
   
+  t0 = time.time()
   for epoch in range(epochs):
-    t0 = time.time()
     model.train()
     train_data(opt, model, rank, train_loader, optimizer, epoch)
+    scheduler.step()
   print(f"time to complete {epochs} epoch: {time.time() - t0} seconds")
   cleanup()
