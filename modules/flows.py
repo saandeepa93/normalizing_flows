@@ -61,19 +61,21 @@ class Block(nn.Module):
   def __init__(self, inp, n_blocks):
     super(Block, self).__init__()
     parity = 0
-    blocks = nn.ModuleList()
+    self.blocks = nn.ModuleList()
     for _ in range(n_blocks):
-      blocks.append(SimpleNet(inp, parity))
+      self.blocks.append(SimpleNet(inp, parity))
       parity += 1
-    self.blocks = blocks
+    
   
-  def forward(self, x):
+  def forward(self, x, rank):
+
     logdet = 0
     out = x
     xs = [out]
     # print("*"*20, "FORWARD", "*"*30)
     for block in self.blocks:
       out, det = block(out)
+      out, det = out.to(rank), det.to(rank)
       logdet += det
       xs.append(out)
     return out, logdet
@@ -92,8 +94,8 @@ class Flow(nn.Module):
     self.prior = prior
     self.flow = Block(inp, n_blocks)
   
-  def forward(self, x):
-    z, logdet = self.flow(x)
+  def forward(self, x, rank):
+    z, logdet = self.flow(x, rank)
     logprob = self.prior.log_prob(z).view(x.size(0), -1).sum(1)
     return z, logdet, logprob
   

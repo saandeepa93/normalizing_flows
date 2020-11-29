@@ -1,19 +1,18 @@
 # torch libraries
 import torch 
 from torch import nn, optim
-from torch.distributions import MultivariateNormal
 
-#MNIST
-from torchvision.datasets import MNIST
-from torchvision import transforms
-from torch.utils.data import DataLoader
+# distributed execution
+import torch.distributed as dist
 
 # python libraries
+import os
 import numpy as np
 import shutil
 import matplotlib.pyplot as plt
 from sklearn.datasets import make_moons
 import cv2
+import time
 
 # debugger
 from sys import exit as e
@@ -59,7 +58,6 @@ def save_checkpoint(state, is_best, filename='./models/checkpoint.pth.tar'):
     shutil.copyfile(filename, './models/model_best.pth.tar')
 
 
-
 def test_data():
   transform = transforms.Compose(
     [transforms.Normalize((0), (1))]
@@ -74,84 +72,36 @@ def test_data():
   sample = sample.view(28, 28).unsqueeze(0)
   sample = norm(sample, 1, 28, 28)
   xs = model.reverse(sample.view(1, 784))
-  print(torch.min(sample), torch.max(sample))
-  print(torch.min(xs), torch.max(xs))
   show(xs.view(28, 28).detach().numpy(), "output")
 
 
-def train_data():
-  inpt = 100
-  dim = 784
-  n_block = 9
-  epochs = 150
-  lr = 0.001
-  wd=1e-3
-  old_loss = 1e6
-  best_loss = 0
-  batch_size = 128
-  prior = MultivariateNormal(torch.zeros(dim), torch.eye(dim))
-
-  #MNIST
-  transform = transforms.Compose([transforms.ToTensor()])
-  train_dataset = MNIST(root="~/torch_datasets", train=True, transform=transform, download=True)
-  train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-
-  torch.manual_seed(1)
-  model = Flow(dim, prior, n_block)
-  # model.apply(init_weights)
-  optimizer = optim.Adam(model.parameters(), lr)
-
-  sample = prior.sample([1])
-  for i in range(epochs):
-    total_loss = 0
-    for b, (x, _) in enumerate(train_loader):
-
-      #DEQUANTIZATION
-      n_bits = 8
-      n_bins = 2**n_bits
-      x = torch.Tensor([0, 1])
-      x = x * 255
-      print(torch.min(x), torch.max(x), x.dtype)
-      x = torch.floor(x / 2 ** (8 - n_bits))
-      print(torch.min(x), torch.max(x), x.dtype)
-      tmp_x = x + torch.rand_like(x) / n_bins
-      print(torch.min(x), torch.max(x), x.dtype)
-      x = x + torch.rand_like(x) / n_bins
-      print(torch.min(x), torch.max(x), x.dtype)
-      e()
-
-      model.train()
-      optimizer.zero_grad()
-      if b == 100:
-        break
-      x = x.view(batch_size, -1)
-      z, logdet, logprob = model(x)
-      img_orig = x.reshape(batch_size, 28, 28)
-      img_test = model.reverse(z).reshape(batch_size, 28, 28)
-      loss = -(logprob + logdet)
-      loss = torch.sum(loss)
-      total_loss += loss
-    if i % 10 == 0:
-      # for params in model.parameters():
-      #   print(params.mean())
-      if loss.item()/batch_size < old_loss and loss.item() > 0:
-        is_best = 1
-        save_checkpoint(model.state_dict(), is_best)
-        print("saved model")
-        old_loss = loss/batch_size
-        model.eval()
-        # with torch.no_grad():
-        sample = prior.sample([1])
-        sample = sample.view(28, 28).unsqueeze(0)
-        sample = norm(sample, 1, 28, 28)
-        xs = model.reverse(sample.view(1, 784))
-        model.train()
-        show(xs.view(28, 28).detach().numpy(), i)
-      print(f"loss at epoch {i}: {loss.item()/batch_size}")
+def train_data(opt, model, rank, train_loader, optimizer, epoch):
+  for b, (x, _) in enumerate(train_loader):
+    #DEQUANTIZATION
+    # n_bits = 8
+    # n_bins = 2**n_bits
+    # x = torch.Tensor([0, 1])
+    # x = x * 255
+    # x = torch.floor(x / 2 ** (8 - n_bits))
+    # tmp_x = x + torch.rand_like(x) / n_bins
+    # x = x + torch.rand_like(x) / n_bins
+    # e()
+    optimizer.zero_grad()
+    x = x.view(x.size(0), -1)
+    x = x.to(rank)
+    z, logdet, logprob = model(x, rank)
+    loss = -(logprob + logdet)
+    loss = torch.sum(loss)
     loss.backward()
     optimizer.step()
-  best_loss = old_loss
-  print(f"best loss at {best_loss}")
+    if b % 10 == 0:
+      dist.all_reduce(loss, op=dist.ReduceOp.SUM)
+      if rank==0:
+        print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(epoch, \
+          b * len(x), len(train_loader.dataset), 100. * b / \
+            len(train_loader), loss.item()))
+        # print(f"epoch: {epoch} [{b}/{len(train_loader)} \
+        # ({100. * b/len(train_loader)}%)]\t Loss:{loss.item()}")
 
 
 
