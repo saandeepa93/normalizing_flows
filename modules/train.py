@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from sklearn.datasets import make_moons
 import cv2
 import time
+from math import log
 
 # debugger
 from sys import exit as e
@@ -57,6 +58,21 @@ def save_checkpoint(state, is_best, filename='./models/checkpoint.pth.tar'):
   if is_best:
     shutil.copyfile(filename, './models/model_best.pth.tar')
 
+def preprocess(x):
+  x = x * 255
+  x = torch.floor(x/2**3)
+  x = x/32 - 0.5
+  return x
+
+def calc_loss(logdet, logprob, num_pixels):
+  loss = -log(32) * num_pixels
+  loss = loss + logdet + logprob
+
+  return (
+    (-loss/(log(2) * num_pixels)).mean(),
+    (logdet/(log(2) * num_pixels)).mean(),
+    (logprob/(log(2) * num_pixels)).mean()
+  )
 
 def test_data():
   transform = transforms.Compose(
@@ -77,32 +93,24 @@ def test_data():
 
 def train_data(opt, model, rank, train_loader, optimizer, epoch):
   for b, (x, _) in enumerate(train_loader):
-    #DEQUANTIZATION
-    # n_bits = 8
-    # n_bins = 2**n_bits
-    # x = torch.Tensor([0, 1])
-    # x = x * 255
-    # x = torch.floor(x / 2 ** (8 - n_bits))
-    # tmp_x = x + torch.rand_like(x) / n_bins
-    # x = x + torch.rand_like(x) / n_bins
-    # e()
     optimizer.zero_grad()
+    x = preprocess(x)
     x = x.view(x.size(0), -1)
     x = x.to(rank)
     z, logdet, logprob = model(x)
-
-    x_1 = x[0:4]
-    x_new = model.module.reverse(x_1)
-    img = x_1.view(4, 28, 28).detach().cpu().numpy()
-    img_rev = x_new.view(4, 28, 28).detach().cpu()
-    # img_rev = norm(img_rev, 4, 28, 28).numpy()
+    # x_1 = x[0:4]
+    # x_new = model.module.reverse(x_1)
+    # img = x_1.view(4, 28, 28).detach().cpu().numpy()
+    # img_rev = x_new.view(4, 28, 28).detach().cpu()
     # for i in range(4):
     #   show(img[i], f"img_orig_{i}")
     #   show(img_rev[i], f"img_rev_{i}")
     # print(np.amin(img), np.amax(img))
     # print(np.amin(img_rev), np.amax(img_rev))
-    loss = -(logprob + logdet)
-    loss = torch.sum(loss)
+    # loss = -(logprob + logdet)
+    # loss = torch.sum(loss)
+    logdet = logdet.mean()
+    loss, logdet, logprob = calc_loss(logdet, logprob, 784)
     loss.backward()
     optimizer.step()
     if b % 10 == 0:
