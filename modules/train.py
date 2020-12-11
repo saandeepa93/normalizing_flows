@@ -39,9 +39,11 @@ def plot(arr):
   plt.show()
 
 def show(img, name):
+  # path = f"./samples/{name}.png"
+  path = f"/data/saandeepaath/flow_based/samples/{name}.png"
   plt.imshow(img)
   # plt.show()
-  plt.savefig(f"/data/saandeepaath/flow_based/samples/{name}.png")
+  plt.savefig(path)
 
 def imshow(img):
   cv2.imshow("image", img)
@@ -91,15 +93,16 @@ def test_data():
   show(xs.view(28, 28).detach().numpy(), "output")
 
 
-def train_data(opt, model, rank, train_loader, optimizer, epoch):
+def train_data(opt, model, device, train_loader, optimizer, epoch):
   for b, (x, _) in enumerate(train_loader):
     optimizer.zero_grad()
+    x = x.to(device)
     x = preprocess(x)
     x = x.view(x.size(0), -1)
-    x = x.to(rank)
-    z, logdet, logprob = model(x)
+    z, logdet, logprob = model.module(x)
     # x_1 = x[0:4]
     # x_new = model.module.reverse(x_1)
+    # x_new = model.reverse(x_1)
     # img = x_1.view(4, 28, 28).detach().cpu().numpy()
     # img_rev = x_new.view(4, 28, 28).detach().cpu()
     # for i in range(4):
@@ -114,11 +117,10 @@ def train_data(opt, model, rank, train_loader, optimizer, epoch):
     loss.backward()
     optimizer.step()
     if b % 10 == 0:
-      dist.all_reduce(loss, op=dist.ReduceOp.SUM)
-      if rank==0:
-        print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(epoch, \
-          b * len(x), len(train_loader.dataset), 100. * b / \
-            len(train_loader), loss.item()))
+      # dist.all_reduce(loss, op=dist.ReduceOp.SUM)
+      print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(epoch, \
+        b * len(x), len(train_loader.dataset), 100. * b / \
+          len(train_loader), loss.item()))
         # print(f"epoch: {epoch} [{b}/{len(train_loader)} \
         # ({100. * b/len(train_loader)}%)]\t Loss:{loss.item()}")
 
