@@ -31,20 +31,21 @@ def startup(rank, world_size, opt, use_cuda):
   # print("on rank ", rank)
   torch.manual_seed(1)
   # device = "cuda" if not opt.no_cuda and torch.cuda.is_available() else "cpu"
-  device= torch.device("cuda" if use_cuda else "cpu")
+  device= torch.device("cuda:0" if use_cuda else "cpu")
   # setup(rank, world_size)
   kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
   inpt = 100
-  dim = 784
-  n_block = 9
-  epochs = 20
-  lr = 0.005
+  dim = 1
+  img_size = 28
+  n_block = 4
+  epochs = 5
+  lr = 0.001
   wd=1e-3
   old_loss = 1e6
   best_loss = 0
   batch_size = 128
-  prior = MultivariateNormal(torch.zeros(dim).to(device), torch.eye(dim).to(device))
+  prior = MultivariateNormal(torch.zeros(img_size).to(device), torch.eye(img_size).to(device))
 
   #MNIST
   transform = transforms.Compose([transforms.ToTensor()])
@@ -56,13 +57,12 @@ def startup(rank, world_size, opt, use_cuda):
     **kwargs)
   
   model = Flow(dim, prior, n_block)
-
-  if use_cuda and torch.cuda.device_count()>1:
-  #   model = model.to(rank)
-    # model = DistributedDataParallel(model, device_ids=[rank])
-    model = DataParallel(model, device_ids=[0, 1, 2, 3])
-
   model = model.to(device)
+
+  # if use_cuda and torch.cuda.device_count()>1:
+  #   model = DataParallel(model, device_ids=[0, 1, 2, 3])
+  #   prior = DataParallel(prior, device_ids=[0, 1, 2, 3])
+
   optimizer = optim.Adam(model.parameters(), lr)
   scheduler = StepLR(optimizer, step_size=1, gamma=0.7)
   

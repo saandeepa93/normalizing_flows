@@ -7,19 +7,25 @@ class SimpleNet(nn.Module):
   def __init__(self, inp, parity):
     super(SimpleNet, self).__init__()
     self.net = nn.Sequential(
-      nn.Linear(inp//2, 256),
-      nn.LeakyReLU(True),
-      nn.Linear(256, 256),
-      nn.LeakyReLU(True),
-      nn.Linear(256, inp//2),
-      nn.Sigmoid()
+      nn.Conv2d(inp, 32, 3, 1, 1),
+      nn.Tanh(),
+      nn.Conv2d(32, 64, 3, 1, 1),
+      nn.Tanh(),
+      nn.Conv2d(64, 32, 3, 1, 1),
+      nn.Tanh(),
+      nn.Conv2d(32, inp, 3, 1, 1),
+      nn.Tanh(),
+      # nn.Linear(256, 256),
+      # nn.LeakyReLU(True),
+      # nn.Linear(256, inp//2),
+      # nn.Sigmoid()
     )
     self.inp = inp
     self.parity = parity
   
   def forward(self, x):
     z = torch.zeros_like(x)
-    x0, x1 = x[:, ::2], x[:, 1::2]
+    x0, x1 = x[:, :, ::2, ::2], x[:, :, 1::2, 1::2]
     if self.parity % 2:
       x0, x1 = x1, x0 
     z1 = x1
@@ -29,14 +35,14 @@ class SimpleNet(nn.Module):
     z0 = (s * x0) + t
     if self.parity%2:
       z0, z1 = z1, z0
-    z[:, ::2] = z0
-    z[:, 1::2] = z1
+    z[:, :, ::2, ::2] = z0
+    z[:, :, 1::2, 1::2] = z1
     logdet = torch.sum(torch.log(s), dim = 1)
     return z, logdet
   
   def reverse(self, z):
     x = torch.zeros_like(z)
-    z0, z1 = z[:, ::2], z[:, 1::2]
+    z0, z1 = z[:, :, ::2, ::2], z[:, :, 1::2, 1::2]
     if self.parity%2:
       z0, z1 = z1, z0
     x1 = z1
@@ -46,8 +52,8 @@ class SimpleNet(nn.Module):
     x0 = (z0 - t)/s
     if self.parity%2:
       x0, x1 = x1, x0
-    x[:, ::2] = x0
-    x[:, 1::2] = x1
+    x[:, :, ::2, ::2] = x0
+    x[:, :, 1::2, 1::2] = x1
     return x
   
 
