@@ -14,7 +14,7 @@ from torch.nn.parallel import DistributedDataParallel, DataParallel
 import torch.distributed as dist
 
 from modules.flows import Flow
-from modules.train import train_data, test_data
+from modules.train import train_data
 
 from sys import exit as e
 
@@ -30,38 +30,38 @@ def cleanup():
 def startup(rank, world_size, opt, use_cuda):
   # print("on rank ", rank)
   torch.manual_seed(1)
-  # device = "cuda" if not opt.no_cuda and torch.cuda.is_available() else "cpu"
-  device= torch.device("cuda:0" if use_cuda else "cpu")
-  # setup(rank, world_size)
+  device = "cuda" if not opt.no_cuda and torch.cuda.is_available() else "cpu"
+  # device= torch.device("cuda:0" if use_cuda else "cpu")
+  setup(rank, world_size)
   kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
   inpt = 100
   dim = 1
   img_size = 28
   n_block = 4
-  epochs = 5
-  lr = 0.001
+  epochs = 50
+  lr = 0.01
   wd=1e-3
   old_loss = 1e6
   best_loss = 0
   batch_size = 128
-  prior = MultivariateNormal(torch.zeros(img_size).to(device), torch.eye(img_size).to(device))
+  prior = MultivariateNormal(torch.zeros(img_size).to(rank), torch.eye(img_size).to(rank))
 
   #MNIST
   transform = transforms.Compose([transforms.ToTensor()])
   train_dataset = MNIST(root=opt.root, train=True, transform=transform, \
     download=True)
-  # train_sampler = DistributedSampler(train_dataset, num_replicas=world_size, \
-  #   rank=rank)
-  train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, \
-    **kwargs)
+  train_sampler = DistributedSampler(train_dataset, num_replicas=world_size, \
+    rank=rank)
+  train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False, \
+    **kwargs, sampler=train_sampler)
   
   model = Flow(dim, prior, n_block)
-  model = model.to(device)
+  model = model.to(rank)
 
-  # if use_cuda and torch.cuda.device_count()>1:
-  #   model = DataParallel(model, device_ids=[0, 1, 2, 3])
-  #   prior = DataParallel(prior, device_ids=[0, 1, 2, 3])
+  if use_cuda and torch.cuda.device_count()>1:
+      model = model.to(rank)
+      model = DistributedDataParallel(model, device_ids=[rank])
 
   optimizer = optim.Adam(model.parameters(), lr)
   scheduler = StepLR(optimizer, step_size=1, gamma=0.7)
@@ -69,7 +69,7 @@ def startup(rank, world_size, opt, use_cuda):
   t0 = time.time()
   for epoch in range(epochs):
     model.train()
-    train_data(opt, model, device, train_loader, optimizer, epoch)
+    train_data(opt, model, rank, train_loader, optimizer, epoch)
     scheduler.step()
   print(f"time to complete {epochs} epoch: {time.time() - t0} seconds")
-  # cleanup()
+  cleanup()
