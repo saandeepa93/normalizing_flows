@@ -8,17 +8,13 @@ class SimpleNet(nn.Module):
     super(SimpleNet, self).__init__()
     self.net = nn.Sequential(
       nn.Conv2d(inp, 32, 3, 1, 1),
-      nn.Tanh(),
+      nn.ReLU(True),
       nn.Conv2d(32, 64, 3, 1, 1),
-      nn.Tanh(),
+      nn.ReLU(True),
       nn.Conv2d(64, 32, 3, 1, 1),
-      nn.Tanh(),
+      nn.ReLU(True),
       nn.Conv2d(32, inp, 3, 1, 1),
-      nn.Tanh(),
-      # nn.Linear(256, 256),
-      # nn.LeakyReLU(True),
-      # nn.Linear(256, inp//2),
-      # nn.Sigmoid()
+      nn.ReLU(True),
     )
     self.inp = inp
     self.parity = parity
@@ -92,7 +88,7 @@ class Flow(nn.Module):
   
   def forward(self, x):
     z, logdet = self.flow(x)
-    logprob = self.prior.log_prob(z).view(x.size(0), -1).sum(1)
+    logprob = self.prior.log_prob(z).view(x.size(0), -1).sum(1) #Error encountered here
     return z, logdet, logprob
   
   def reverse(self, z):
@@ -102,4 +98,3 @@ class Flow(nn.Module):
   def get_sample(self, n):
     z = self.prior.sample(sample_shape = torch.Size([n]))
     return self.reverse(z)
-
