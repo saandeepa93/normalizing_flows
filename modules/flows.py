@@ -7,13 +7,11 @@ class SimpleNet(nn.Module):
   def __init__(self, inp, parity):
     super(SimpleNet, self).__init__()
     self.net = nn.Sequential(
-      nn.Conv2d(inp, 32, 3, 1, 1),
+      nn.Conv2d(inp, 8, 3, 1, 1),
       nn.ReLU(True),
-      nn.Conv2d(32, 64, 3, 1, 1),
+      nn.Conv2d(8, 16, 3, 1, 1),
       nn.ReLU(True),
-      nn.Conv2d(64, 32, 3, 1, 1),
-      nn.ReLU(True),
-      nn.Conv2d(32, inp, 3, 1, 1),
+      nn.Conv2d(16, inp, 3, 1, 1),
       nn.ReLU(True),
     )
     self.inp = inp
