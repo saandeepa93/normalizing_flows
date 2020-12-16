@@ -7,19 +7,25 @@ class SimpleNet(nn.Module):
   def __init__(self, inp, parity):
     super(SimpleNet, self).__init__()
     self.net = nn.Sequential(
-      nn.Conv2d(inp, 8, 3, 1, 1),
+      # nn.Conv2d(inp, 8, 3, 1, 1),
+      # nn.ReLU(True),
+      # nn.Conv2d(8, 16, 3, 1, 1),
+      # nn.ReLU(True),
+      # nn.Conv2d(16, inp, 3, 1, 1),
+      # nn.ReLU(True),
+      nn.Linear(inp//2, 24),
       nn.ReLU(True),
-      nn.Conv2d(8, 16, 3, 1, 1),
+      nn.Linear(24, 24),
       nn.ReLU(True),
-      nn.Conv2d(16, inp, 3, 1, 1),
-      nn.ReLU(True),
+      nn.Linear(24, inp//2),
     )
     self.inp = inp
     self.parity = parity
   
   def forward(self, x):
     z = torch.zeros_like(x)
-    x0, x1 = x[:, :, ::2, ::2], x[:, :, 1::2, 1::2]
+    # x0, x1 = x[:, :, ::2, ::2], x[:, :, 1::2, 1::2]
+    x0, x1 = x[:, ::2], x[:, 1::2]
     if self.parity % 2:
       x0, x1 = x1, x0 
     z1 = x1
@@ -29,14 +35,16 @@ class SimpleNet(nn.Module):
     z0 = (s * x0) + t
     if self.parity%2:
       z0, z1 = z1, z0
-    z[:, :, ::2, ::2] = z0
-    z[:, :, 1::2, 1::2] = z1
+    # z[:, :, ::2, ::2] = z0
+    # z[:, :, 1::2, 1::2] = z1
+    z = torch.cat([z0, z1], dim = 1)
     logdet = torch.sum(torch.log(s), dim = 1)
     return z, logdet
   
   def reverse(self, z):
     x = torch.zeros_like(z)
-    z0, z1 = z[:, :, ::2, ::2], z[:, :, 1::2, 1::2]
+    # z0, z1 = z[:, :, ::2, ::2], z[:, :, 1::2, 1::2]
+    z0, z1 = z[:, ::2], z[:, 1::2]
     if self.parity%2:
       z0, z1 = z1, z0
     x1 = z1
@@ -46,8 +54,9 @@ class SimpleNet(nn.Module):
     x0 = (z0 - t)/s
     if self.parity%2:
       x0, x1 = x1, x0
-    x[:, :, ::2, ::2] = x0
-    x[:, :, 1::2, 1::2] = x1
+    # x[:, :, ::2, ::2] = x0
+    # x[:, :, 1::2, 1::2] = x1
+    x = torch.cat([x0, x1], dim = 1)
     return x
   
 

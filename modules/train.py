@@ -20,6 +20,11 @@ from math import log
 from sys import exit as e
 
 
+def sample_moon(inpt):
+  moon = make_moons(inpt, noise=0.05)[0].astype(np.float32)
+  moon = torch.from_numpy(moon)
+  return moon
+
 
 def plot_grad_flow(named_parameters, name, last):
   # path = f"./samples/{name}.png"
@@ -82,7 +87,17 @@ def calc_loss(logdet, logprob, num_pixels):
   )
 
 
-def train_data(opt, model, rank, train_loader, optimizer, epoch):
+def train_data(opt, model, device, train_loader, optimizer, epoch):
+  optimizer.zero_grad()
+  x = sample_moon(100).to(device)
+  z, logdet, logprob = model(x)
+  loss = -(logprob + logdet)
+  loss = torch.sum(loss)
+  loss.backward()
+  optimizer.step()
+  if epoch % 100 == 0:
+    print(f"loss at epoch {epoch}: {loss.item()}")
+  return
   path = "/data/saandeepaath/flow_based/samples/"
   z_sample = torch.randn((20, 1, 28, 28)).to(rank)
   for b, (x, _) in enumerate(train_loader):
