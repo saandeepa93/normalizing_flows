@@ -65,7 +65,6 @@ def get_reverse(x, rank, model):
   x_new = model.module.reverse(x_1)
   img = x_1.view(4, 28, 28).detach().cpu().numpy()
   img_rev = x_new.view(4, 28, 28).detach().cpu().numpy()
-  print(img.shape, img_rev.shape)
   for i in range(4):
     imshow(img[i] * 255, f"img_orig_{i}")
     imshow(img_rev[i] * 255, f"img_rev_{i}")
@@ -87,19 +86,10 @@ def calc_loss(logdet, logprob, num_pixels):
   )
 
 
-def train_data(opt, model, device, train_loader, optimizer, epoch):
-  optimizer.zero_grad()
-  x = sample_moon(100).to(device)
-  z, logdet, logprob = model(x)
-  loss = -(logprob + logdet)
-  loss = torch.sum(loss)
-  loss.backward()
-  optimizer.step()
-  if epoch % 100 == 0:
-    print(f"loss at epoch {epoch}: {loss.item()}")
-  return
+def train_data(opt, model, rank, train_loader, optimizer, epoch, tot_loss):
   path = "/data/saandeepaath/flow_based/samples/"
   z_sample = torch.randn((20, 1, 28, 28)).to(rank)
+  running_loss = 0.0
   for b, (x, _) in enumerate(train_loader):
     optimizer.zero_grad()
     x = x.to(rank)
@@ -110,23 +100,14 @@ def train_data(opt, model, device, train_loader, optimizer, epoch):
     loss, logdet, logprob = calc_loss(logdet, logprob, 784)
     last = True if b == len(train_loader) - 1 else False
     loss.backward()
-    plot_grad_flow(model.named_parameters(), f"grad_{epoch}_{b}", last)
+    # plot_grad_flow(model.named_parameters(), f"grad_{epoch}_{b}", last)
     optimizer.step()
-    if b % 10 == 0:
-      dist.all_reduce(loss, op=dist.ReduceOp.SUM)
-      if rank == 0:
-        with torch.no_grad():
-          print("CUDA: ", z_sample.is_cuda)
-          utils.save_image(
-            model.reverse(z_sample).cpu().data,
-            f"{path}/{str(b + 1).zfill(6)}.png",
-            normalize=True,
-            nrow=10,
-            range=(-0.5, 0.5),
-          )
-        print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(epoch, \
-          b * len(x), len(train_loader.dataset), 100. * b / \
-            len(train_loader), loss.item()))
+    running_loss += loss.item()
+  with torch.no_grad():
+    x_sample = model.module.reverse(z_sample).cpu().data
+  x_sample = torch.sigmoid(x_sample)
+  imshow(x_sample[0].squeeze().detach().numpy() * 255, f"image_{epoch}")
+  tot_loss.append(running_loss/len(train_loader))
 
 
 

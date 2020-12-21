@@ -16,9 +16,9 @@ def main():
 
   os.environ["CUDA_VISIBLE_DEVICES"]="0,1,2,3"
   use_cuda = not opt.no_cuda and torch.cuda.is_available()
-  # world_size = opt.gpus if use_cuda else 2
-  # mp.spawn(startup, args=(world_size, opt, use_cuda), nprocs=world_size, join=True)
-  startup(None, None, opt, use_cuda)
+  world_size = opt.gpus if use_cuda else 2
+  mp.spawn(startup, args=(world_size, opt, use_cuda), nprocs=world_size, join=True)
+  # startup(None, None, opt, use_cuda)
 
 
 if __name__ == '__main__':

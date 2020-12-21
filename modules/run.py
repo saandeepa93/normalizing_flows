@@ -1,5 +1,6 @@
 import os
 import time
+import matplotlib.pyplot as plt
 
 import torch 
 from torch import nn, optim
@@ -30,56 +31,71 @@ def cleanup():
 
 def startup(rank, world_size, opt, use_cuda):
   # torch.manual_seed(1)
-  device = "cuda:0" if not opt.no_cuda and torch.cuda.is_available() else "cpu"
-  # setup(rank, world_size)
+  # device = "cuda" if not opt.no_cuda and torch.cuda.is_available() else "cpu"
+  setup(rank, world_size)
   kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
-  inpt = 1000
-  dim = 2
+  inpt = 10
+  dim = 1
   img_size = 28
   n_block = 9
-  epochs = 2000
+  epochs = 20000
   lr = 0.01
   wd=1e-3
   old_loss = 1e6
   best_loss = 0
-  batch_size = 128
-  prior = MultivariateNormal(torch.zeros(dim).to(device), torch.eye(dim).to(device))
+  batch_size = 256
+  # inpt = 1000
+  # dim = 2
+  # img_size = 28
+  # n_block = 9
+  # epochs = 2000
+  # lr = 0.01
+  # wd=1e-3
+  # old_loss = 1e6
+  # best_loss = 0
+  # batch_size = 128
+  prior = MultivariateNormal(torch.zeros(img_size).to(rank), torch.eye(img_size).to(rank))
 
   #MNIST
-  train_loader = None
-  # transform = transforms.Compose([transforms.ToTensor()])
-  # train_dataset = MNIST(root=opt.root, train=True, transform=transform, \
-  #   download=True)
-  # train_sampler = DistributedSampler(train_dataset, num_replicas=world_size, \
-  #   rank=rank)
-  # train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False, \
-  #   **kwargs, sampler=train_sampler)
+  # train_loader = None
+  transform = transforms.Compose([transforms.ToTensor()])
+  train_dataset = MNIST(root=opt.root, train=True, transform=transform, \
+    download=True)
+  train_sampler = DistributedSampler(train_dataset, num_replicas=world_size, \
+    rank=rank)
+  train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False, \
+    **kwargs, sampler=train_sampler)
   
   model = Flow(dim, prior, n_block)
-  model = model.to(device)
+  model = model.to(rank)
 
-  # if use_cuda and torch.cuda.device_count()>1:
-  #   model = model.to(rank)
-  #   model = DistributedDataParallel(model, device_ids=[rank])
+  if use_cuda and torch.cuda.device_count()>1:
+    model = model.to(rank)
+    model = DistributedDataParallel(model, device_ids=[rank])
 
   optimizer = optim.Adam(model.parameters(), lr)
   # optimizer = optim.SGD(model.parameters(), lr, momentum=0.9)
   # scheduler = StepLR(optimizer, step_size=1, gamma=0.7)
   
   t0 = time.time()
+  total_loss = []
   for epoch in range(epochs):
     model.train()
-    # train_data(opt, model, device, train_loader, optimizer, epoch)
-    optimizer.zero_grad()
-    x = sample_moon(100).to(device)
-    z, logdet, logprob = model(x)
-    loss = -(logprob + logdet)
-    loss = torch.sum(loss)
-    loss.backward()
-    optimizer.step()
-    if epoch % 100 == 0:
-      print(f"loss at epoch {epoch}: {loss.item()}")
+    train_data(opt, model, rank, train_loader, optimizer, epoch, total_loss)
+    print(f"loss at epoch {epoch}: {total_loss[-1]}")
+    # optimizer.zero_grad()
+    # x = sample_moon(100).to(device)
+    # z, logdet, logprob = model(x)
+    # loss = -(logprob + logdet)
+    # loss = torch.sum(loss)
+    # loss.backward()
+    # optimizer.step()
+    # if epoch % 100 == 0:
+    #   print(f"loss at epoch {epoch}: {loss.item()}")
     # scheduler.step()
+  # plt.plot(total_loss)
+  # plt.savefig("plot.png")
   print(f"time to complete {epochs} epoch: {time.time() - t0} seconds")
+
   # cleanup()
